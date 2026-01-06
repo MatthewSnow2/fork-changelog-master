@@ -32,3 +32,9 @@ npm-debug.log*
 
 # Database
 data/
+
+# Documentation (private)
+docs/
+
+# Generated files
+vite.config.d.ts
