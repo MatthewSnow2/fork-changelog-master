@@ -55,6 +55,12 @@ Listen to changelog summaries using Gemini 2.5 Flash TTS with 30+ voice options:
 | Aoede | Breezy |
 | *...and 25 more* | |
 
+**Audio Features:**
+- **Seekable Progress Bar** - Click anywhere on the progress bar to jump to that position
+- **Auto-Restore** - Last played audio is automatically restored on page reload (ready to play)
+- **SQLite Caching** - Generated audio is cached in the database, no regeneration needed
+- **Adjustable Playback Speed** - 0.5x to 2x speed options
+
 ### Email Notifications
 Automatic emails when new versions are detected, including:
 - HTML-formatted summary
@@ -166,13 +172,15 @@ VITE_VOICE_PREFERENCE=Charon
 ### Running
 
 ```bash
-# Start both frontend and backend
+# Start both frontend and backend (RECOMMENDED)
 npm run dev:all
 
 # Or run separately:
 npm run dev        # Frontend on http://localhost:5173
 npm run dev:server # Backend on http://localhost:3001
 ```
+
+> **Important:** Always use `npm run dev:all` to start both servers. The backend is required for audio caching, analysis storage, and chat persistence to work properly.
 
 ---
 
@@ -210,8 +218,13 @@ When you have multiple sources:
 1. Go to the **"What Matters"** tab
 2. Click **"Read Latest"** to hear the full summary
 3. Or click **"Read TL;DR"** for a quick briefing
-4. Use the audio player at the bottom to control playback
+4. Use the audio player at the bottom to control playback:
+   - **Play/Pause** - Toggle audio playback
+   - **Seek** - Click anywhere on the progress bar to jump to that position
+   - **Speed** - Adjust playback speed (0.5x to 2x)
+   - **Download** - Save audio as WAV file
 5. Change voices using the dropdown selector
+6. **Auto-Restore**: Reload the page and your last played audio is ready to go
 
 ### Setting Up Email Notifications
 
@@ -458,6 +471,11 @@ The HTML email is generated in `generateEmailHtml()` in `server/index.ts`.
 ### "Audio not playing"
 - Audio is generated as PCM and converted to WAV
 - Ensure browser supports WAV playback
+
+### "Audio regenerates every time"
+- Make sure the backend server is running (`npm run dev:all`)
+- Audio caching requires the `/api/audio` endpoints on port 3001
+- Check browser console for "Using cached audio from SQLite" message
 
 ### "Email not sending"
 - Verify Resend API key and NOTIFY_EMAIL in `.env`
