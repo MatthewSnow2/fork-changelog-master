@@ -1,12 +1,19 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import type { VoiceName } from '../types';
-import { generateAudio, createAudioUrl, downloadAudio } from '../services/ttsService';
+import { generateAudio, createAudioUrl, downloadAudio, getCachedAudio, hashString } from '../services/ttsService';
+
+interface LastPlayedAudio {
+  textHash: string;
+  voice: VoiceName;
+  label: string;
+}
 
 interface UseAudioReturn {
   audioUrl: string | null;
   generatingFor: string | null;
   playingFor: string | null;
   isPlaying: boolean;
+  isRestoring: boolean;
   currentTime: number;
   duration: number;
   playbackSpeed: number;
@@ -28,6 +35,7 @@ export function useAudio(): UseAudioReturn {
   const [generatingFor, setGeneratingFor] = useState<string | null>(null);
   const [playingFor, setPlayingFor] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isRestoring, setIsRestoring] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [playbackSpeed, setPlaybackSpeedState] = useState(() => {
@@ -42,6 +50,7 @@ export function useAudio(): UseAudioReturn {
   );
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const hasRestoredRef = useRef(false);
 
   const handleVoiceChange = (voice: VoiceName) => {
     setSelectedVoice(voice);
@@ -56,6 +65,81 @@ export function useAudio(): UseAudioReturn {
     }
   }, []);
 
+  // Helper to setup audio element with all event listeners
+  const setupAudioElement = useCallback((buffer: ArrayBuffer, label: string, autoPlay: boolean = true) => {
+    setAudioBuffer(buffer);
+
+    const url = createAudioUrl(buffer);
+    setAudioUrl(url);
+
+    if (audioRef.current) {
+      audioRef.current.pause();
+    }
+
+    const audio = new Audio(url);
+    audio.playbackRate = playbackSpeed;
+    audioRef.current = audio;
+
+    audio.addEventListener('loadedmetadata', () => {
+      setDuration(audio.duration);
+    });
+
+    audio.addEventListener('timeupdate', () => {
+      setCurrentTime(audio.currentTime);
+    });
+
+    audio.addEventListener('ended', () => {
+      setIsPlaying(false);
+      setPlayingFor(null);
+      setCurrentTime(0);
+    });
+
+    audio.addEventListener('error', () => {
+      setError('Failed to play audio');
+      setIsPlaying(false);
+      setPlayingFor(null);
+    });
+
+    setPlayingFor(label);
+
+    if (autoPlay) {
+      audio.play().then(() => {
+        setIsPlaying(true);
+      }).catch(() => {
+        // Auto-play might be blocked by browser
+        setIsPlaying(false);
+      });
+    }
+  }, [playbackSpeed]);
+
+  // Restore last played audio on mount
+  useEffect(() => {
+    if (hasRestoredRef.current) return;
+    hasRestoredRef.current = true;
+
+    const restoreAudio = async () => {
+      const saved = localStorage.getItem('lastPlayedAudio');
+      if (!saved) return;
+
+      try {
+        const lastPlayed: LastPlayedAudio = JSON.parse(saved);
+        setIsRestoring(true);
+
+        const cached = await getCachedAudio(lastPlayed.textHash, lastPlayed.voice);
+        if (cached) {
+          console.log('Restored last played audio from cache');
+          setupAudioElement(cached, lastPlayed.label, false);
+        }
+      } catch (err) {
+        console.error('Failed to restore audio:', err);
+      } finally {
+        setIsRestoring(false);
+      }
+    };
+
+    restoreAudio();
+  }, [setupAudioElement]);
+
   const generateAndPlay = useCallback(
     async (text: string, label: string) => {
       setGeneratingFor(label);
@@ -63,54 +147,24 @@ export function useAudio(): UseAudioReturn {
 
       try {
         const buffer = await generateAudio(text, selectedVoice);
-        setAudioBuffer(buffer);
 
         if (audioUrl) {
           URL.revokeObjectURL(audioUrl);
         }
 
-        const url = createAudioUrl(buffer);
-        setAudioUrl(url);
+        // Save last played info to localStorage for restore on reload
+        const textHash = hashString(text);
+        const lastPlayed: LastPlayedAudio = { textHash, voice: selectedVoice, label };
+        localStorage.setItem('lastPlayedAudio', JSON.stringify(lastPlayed));
 
-        if (audioRef.current) {
-          audioRef.current.pause();
-        }
-
-        const audio = new Audio(url);
-        audio.playbackRate = playbackSpeed;
-        audioRef.current = audio;
-
-        audio.addEventListener('loadedmetadata', () => {
-          setDuration(audio.duration);
-        });
-
-        audio.addEventListener('timeupdate', () => {
-          setCurrentTime(audio.currentTime);
-        });
-
-        audio.addEventListener('ended', () => {
-          setIsPlaying(false);
-          setPlayingFor(null);
-          setCurrentTime(0);
-        });
-
-        audio.addEventListener('error', () => {
-          setError('Failed to play audio');
-          setIsPlaying(false);
-          setPlayingFor(null);
-        });
-
-        // Auto-play after generation
-        await audio.play();
-        setIsPlaying(true);
-        setPlayingFor(label);
+        setupAudioElement(buffer, label, true);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to generate audio');
       } finally {
         setGeneratingFor(null);
       }
     },
-    [selectedVoice, audioUrl, playbackSpeed]
+    [selectedVoice, audioUrl, setupAudioElement]
   );
 
   const play = useCallback(() => {
@@ -158,6 +212,7 @@ export function useAudio(): UseAudioReturn {
     generatingFor,
     playingFor,
     isPlaying,
+    isRestoring,
     currentTime,
     duration,
     playbackSpeed,

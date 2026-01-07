@@ -51,7 +51,7 @@ function pcmToWav(pcmData: ArrayBuffer): ArrayBuffer {
 }
 
 // Check SQLite cache via API
-async function getCachedAudio(textHash: string, voice: string): Promise<ArrayBuffer | null> {
+export async function getCachedAudio(textHash: string, voice: string): Promise<ArrayBuffer | null> {
   try {
     const response = await fetch(`/api/audio/${textHash}/${voice}`);
     if (response.ok) {
