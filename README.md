@@ -516,3 +516,4 @@ MIT License - see [LICENSE](LICENSE) for details.
 <p align="center">
   <b>Built with AI, for developers who value their time.</b>
 </p>
+<- **Git**: Always review changes before committing ; write clear commit Testing PRs -->
