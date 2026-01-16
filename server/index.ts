@@ -1,4 +1,11 @@
-import 'dotenv/config';
+import dotenv from 'dotenv';
+import path from 'path';
+import os from 'os';
+
+// Load project .env first, then shared secrets (shared takes precedence if duplicated)
+dotenv.config();
+dotenv.config({ path: path.join(os.homedir(), '.env.shared') });
+
 import express from 'express';
 import cors from 'cors';
 import Database from 'better-sqlite3';
